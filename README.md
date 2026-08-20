@@ -65,9 +65,9 @@ Linux CPU 100% 与内核 OOM-Killer 排查：从 top -Hp 线程 TID 转十六进
 
 1）执行全量灾备并发送邮件
 
-# 复制并配置环境凭证cp config/backup_dm8.conf.example config/backup_dm8.confchmod 600 config/backup_dm8.conf
+复制并配置环境凭证cp config/backup_dm8.conf.example config/backup_dm8.confchmod 600 config/backup_dm8.conf
 
-# 运行灾备脚本./scripts/backup_dm8_pro.sh
+运行灾备脚本./scripts/backup_dm8_pro.sh
 
 2）启动监控告警大盘
 
