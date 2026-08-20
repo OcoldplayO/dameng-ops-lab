@@ -1,0 +1,11 @@
+*.iso
+*.dmp
+*.dmp.gz
+*.log
+*.DBF
+/dmdata/
+*.conf
+!config/*.conf.example
+!config/*.yml.example
+.DS_Store
+Thumbs.db

@@ -1,0 +1,22 @@
+global:
+  resolve_timeout: 5m
+  smtp_smarthost: 'smtp.qq.com:465'
+  smtp_from: 'your_email@qq.com'
+  smtp_auth_username: 'your_email@qq.com'
+  smtp_auth_password: 'your_16_digit_auth_code'
+  smtp_require_tls: false
+
+route:
+  group_by: ['alertname', 'instance']
+  group_wait: 10s
+  group_interval: 1m
+  repeat_interval: 1h
+  receiver: 'email-admin'
+
+receivers:
+- name: 'email-admin'
+  email_configs:
+  - to: 'your_email@qq.com'
+    send_resolved: true
+    headers:
+      Subject: '{{ if eq .Status "resolved" }}✅【监控已恢复】{{ else }}🚨【紧急告警】{{ end }}主机: {{ .CommonAnnotations.summary }}'

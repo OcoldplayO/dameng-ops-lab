@@ -1,0 +1,18 @@
+# ========================================================
+# 达梦数据库 (DM8) 自动化灾备生产配置文件 (模板)
+# ========================================================
+DM_BIN_DIR="/home/dmdba/dmdbms/bin"
+DB_HOST="127.0.0.1"
+DB_PORT="5236"
+DB_USER="SYSDBA"
+DB_PWD="YOUR_DB_PASSWORD"
+
+BACKUP_DIR="/dmdata/dmbak"
+LOCK_FILE="/tmp/dm8_backup.lock"
+RETENTION_DAYS=7
+
+# 邮件通知通道配置 (SMTP SSL)
+MAIL_ENABLED=1
+MAIL_SENDER="your_email@qq.com"
+MAIL_AUTH_CODE="your_16_digit_auth_code"
+MAIL_RECEIVER="your_email@qq.com"

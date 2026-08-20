@@ -1,0 +1,20 @@
+groups:
+  - name: host_resource_alerts
+    rules:
+      - alert: HostHighCpuUsage
+        expr: (1 - avg(rate(node_cpu_seconds_total{mode="idle"}[1m]))) * 100 > 75
+        for: 20s
+        labels:
+          severity: critical
+        annotations:
+          summary: "主机 CPU 负载严重超标 (>75%)"
+          description: "主机 {{ $labels.instance }} 当前 CPU 使用率已达到 {{ $value | printf \"%.2f\" }}%，持续超过 20 秒，请立即排查异常进程！"
+
+      - alert: HostLowMemory
+        expr: (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes) * 100 < 20
+        for: 20s
+        labels:
+          severity: warning
+        annotations:
+          summary: "主机可用内存不足预警 (<20%)"
+          description: "主机 {{ $labels.instance }} 可用物理内存仅剩 {{ $value | printf \"%.2f\" }}%，存在 OOM-Killer 强杀风险！"
