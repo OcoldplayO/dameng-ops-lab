@@ -1,6 +1,7 @@
 version: '3.8'
 
 services:
+  # 1. 宿主机指标采集探针（标准桥接网络模式）
   node-exporter:
     image: prom/node-exporter:latest
     container_name: mon_node_exporter
@@ -16,6 +17,7 @@ services:
       - '--path.sysfs=/host/sys'
       - '--path.rootfs=/rootfs'
 
+  # 2. Prometheus 监控时序数据库
   prometheus:
     image: prom/prometheus:latest
     container_name: mon_prometheus
@@ -31,6 +33,7 @@ services:
     depends_on:
       - alertmanager
 
+  # 3. Alertmanager 告警分发中枢
   alertmanager:
     image: prom/alertmanager:latest
     container_name: mon_alertmanager
@@ -42,6 +45,7 @@ services:
     command:
       - '--config.file=/etc/alertmanager/alertmanager.yml'
 
+  # 4. Grafana 可视化监控大盘
   grafana:
     image: grafana/grafana:latest
     container_name: mon_grafana
@@ -53,3 +57,21 @@ services:
       - GF_SECURITY_ADMIN_PASSWORD=admin
     depends_on:
       - prometheus
+
+  # 5. Nginx 安全反向代理统一网关
+  nginx:
+    image: nginx:alpine
+    container_name: mon_nginx
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+      - "9443:9443"
+      - "9444:9444"
+    volumes:
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - grafana
+      - prometheus
+      - alertmanager
