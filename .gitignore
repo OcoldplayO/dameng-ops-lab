@@ -1,11 +1,21 @@
+# 二进制大文件与数据
 *.iso
 *.dmp
 *.dmp.gz
-*.log
 *.DBF
 /dmdata/
+*.log
+
+# 敏感证书私钥与密码文件 (严禁上传)
+*.key
+*.pem
+backup_dm8.conf
+
+# 忽略根目录的杂项配置，但白名单放行示例模板与 Nginx 路由规则
 *.conf
-!config/*.conf.example
-!config/*.yml.example
+!config/backup_dm8.conf.example
+!config/nginx/conf.d/*.conf
+!config/alertmanager/alertmanager.yml.example
+
 .DS_Store
 Thumbs.db
