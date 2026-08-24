@@ -59,9 +59,10 @@ flowchart TB
     HealthScript -->|每日 08:00 晨报| SendMail --> Email
 ```
 
+---
 
 📊 二、 核心性能基准与实测指标 (Benchmarks)
-在单机虚拟化环境下，针对 30 张表 + 100,000 条真实操作审计日志（28.029 MB 原始数据） 的实测性能矩阵：
+在单机环境下，针对 30 张表 + 100,000 条真实操作审计日志（28MB 原始数据）的实测性能矩阵：
 评估维度	指标参数 / 实测表现	核心技术点与优势
 逻辑全备吞吐	4.675 秒 (30 表 / 100,000 行)	达梦原生 dexp 逻辑导出
 归档压缩效率	原始 28.0 MB ➡️ 归档 1.2 MB	Gzip 流水线压缩，压缩比 85%+
@@ -72,7 +73,7 @@ flowchart TB
 灾难恢复验证	100% 完整性验证 (dimp)	单表误删演练，0 警告、0 数据丢失
 安全网关证书	10 年超长有效期（至 2036 年）	OpenSSL 自建私有 PKI 签发，SAN 泛域名绑定，标准 443 全绿安全锁
 
-
+---
 
 🛡️ 三、 工业级自动化运维与防御性设计 (Defensive Architecture)
 
@@ -86,26 +87,32 @@ flowchart TB
 
 全链路告警与状态闭环： 支持每日备份成功推送【运维日报】、执行失败自动捕获错误码；监控大盘在指标超标时触发【🚨紧急告警】、恢复时触发【✅已恢复】通知。
 
-
+---
 
 🌐 四、 统一安全网关与私有 PKI 体系 (Ingress Gateway)
 
 针对企业内网与私有云无备案域名的场景，构建了标准的虚拟主机路由方案：
 私有 PKI 泛域名证书： 通过 OpenSSL 自动签发包含 *.xinchuang.internal、xinchuang.internal、localhost 及主机 IP 的泛域名 SAN 扩展证书。
+
 SNI 443 端口多域名复用： 采用模块化 conf.d/ 隔离架构，所有 Web 应用统一汇聚于标准 443 端口，通过域名精准分流，80 端口自动 301 强制跳转 HTTPS。
+
 零停机平滑热重载： 结合 nginx -t 语法自检与 nginx -s reload，实现路由规则毫秒级无感生效。
 
-
+---
 
 📖 五、 生产排障与性能调优 Runbooks
 详细排障案例与复盘手记收录于 docs/ 目录：
+
 慢查询定位与执行计划分析：深入剖析 CSCN2 全表扫、SSEK2 索引扫、Buffer Pool 缓存命中与网络 fetching 耗时分解。
 长事务行锁等待与会话查杀：通过 V$TRXWAIT 视图实时定位长达 9 分钟的阻塞源头，使用 SP_CLOSE_SESSION(sess_id) 实现线上热解卡，推导自动提交与手动事务的状态机差异。
+
 表空间在线动态扩容实操：MAIN 表空间水位实时巡检，通过 ALTER TABLESPACE ADD DATAFILE 动态挂载 MAIN_02.DBF，实现零停机容量热扩充。
+
 Linux CPU 100% 与内核 OOM-Killer 排查：从 top -Hp 线程 TID 转十六进制穿透到应用代码行，提取 dmesg -T 内核级 OOM 击杀铁证与 oom_score_adj -1000 核心服务保护。
+
 企业级 Nginx 统一网关与私有 PKI 实战指南：私有 CA 构建、SAN 扩展配置、Windows 根证书导入与 443 端口多域名分发全解析。
 
-
+---
 
 📂 六、 仓库目录结构全貌
 
@@ -143,9 +150,12 @@ dameng-ops-lab/
 │   └── dba_troubleshooting_queries.sql # 锁等待排查、会话查杀与表空间巡检 SQL
 │
 └── docs/                               # 📖 深度技术白皮书与排障手册 (Runbooks)
+    ├── 01-xinchuang-deployment-guide.md
+    ├── 02-mysql-to-dameng-migration-diff.md
+    ├── 03-production-incident-runbook.md
     └── 05-nginx-ssl-pki-gateway.md
 
-
+---
 
 🚀 七、 快速启动与演练指南
 
@@ -161,16 +171,16 @@ chmod 600 config/backup_dm8.conf
 ./scripts/server_health_check.sh
 
 3. 启动云原生监控与 Nginx 安全网关
-# 签发 10 年期 SAN 证书
+签发 10 年期 SAN 证书
 ./scripts/generate_ssl.sh
 
-# 一键拉起监控大盘与统一网关
+一键拉起监控大盘与统一网关
 cd config
 docker compose -f docker-compose-monitoring.yml up -d
 
-# 访问 Grafana:     https://grafana.xinchuang.internal (admin/admin)
-# 访问 Prometheus:  https://prometheus.xinchuang.internal
-# 访问 Alertmanager: https://alertmanager.xinchuang.internal
+访问 Grafana:     https://grafana.xinchuang.internal (admin/admin)
+访问 Prometheus:  https://prometheus.xinchuang.internal
+访问 Alertmanager: https://alertmanager.xinchuang.internal
 
 本项目所有演练均基于 openEuler 24.03 与达梦 DM8 真实环境校验，符合信创等保 2.0 合规要求。
 
