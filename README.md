@@ -1,78 +1,168 @@
-🏛️ 信创环境（openEuler + 达梦DM8）全栈交付与自动化容灾演练方案
+🏛️ 企业级信创环境（openEuler + 达梦DM8）全栈交付与自动化容灾演练方案
 
 [![Platform](https://img.shields.io/badge/Platform-openEuler%2024.03%20LTS-blue?style=flat-square)](https://openeuler.org/)
 [![Database](https://img.shields.io/badge/Database-Dameng%20DM8%20(8.1.5)-red?style=flat-square)](https://www.dameng.com/)
+[![Gateway](https://img.shields.io/badge/Gateway-Nginx%20(HTTPS%20SNI)-009639?style=flat-square)](https://nginx.org/)
 [![Observability](https://img.shields.io/badge/Monitoring-Prometheus%20%2B%20Grafana-orange?style=flat-square)](https://prometheus.io/)
 [![License](https://img.shields.io/badge/License-Apache%202.0-green?style=flat-square)](./LICENSE)
 
-本项目模拟国产化替代的核心交付与运维保障场景。
+本项目模拟“信创国产化替代”交付与运维保障场景。  
 
-基于 openEuler 24.03 LTS 与 达梦数据库 (DM8)，完成了涵盖业务系统（若依 RuoYi 30+ 表）迁移、10万级数据基准测试、自动化容灾闭环、生产事故应急排障以及云原生监控告警的落地。
-
-
-
-一：架构拓扑全景图 (Architecture)
-
-[ Windows 宿主机 (管理端) ] ├── DataGrip 数据库管理客户端 (JDBC: jdbc:dm://172.29.199.115:5236) └── 浏览器 (Grafana 大盘 :3000 / Prometheus 告警中心 :9090) │ ▼ [ L3 虚拟网桥直连 (vEthernet / 绕过宿主机代理) ][ openEuler 24.03 LTS (信创基础设施环境) ] ├── 达梦数据库 (DM8 原生服务) │ ├── 实例参数: PAGE_SIZE=16, CASE_SENSITIVE=0 (MySQL兼容), CHARSET=UTF-8 │ ├── 安全基线: 三权分立独立账户 (dmdba:dinstall), limits.conf 资源限制优化 │ └── 业务载荷: 若依 (RuoYi) 30+ 张系统与 Quartz 分布式调度表 + 100,000 条日志 ├── 工业级自动化灾备套件 │ ├── backup_dm8_pro.sh: Linux 内核文件锁 (flock) + dexp 导出 + Gzip + MD5 完整性哈希 │ ├── send_mail.py: 基于 SMTP/SSL 的每日全量灾备报告自动推送 │ └── Crontab 调度: 每日凌晨 02:30 定时无感执行与 7 天滚动轮转清理 └── 云原生可观测性集群 (Docker Compose) ├── node-exporter (系统指标采集 :9100) ──► Prometheus (:9090) ├── Alertmanager (:9093) ──► 自动触发 CPU >75% / 内存不足 紧急告警邮件 └── Grafana (:3000) ──► 实时性能大盘可视化
+基于 openEuler 24.03 LTS 与 达梦数据库 (DM8)，完成了涵盖复杂业务模型（若依 RuoYi 30+ 表）迁移适配、10万级数据基准压、自动化容灾、全自动健康巡检晨报、生产事故应急排障手册、统一安全网关（Nginx + 私有 PKI）以及云原生监控告警的全栈工程落地。
 
 
+📐 一、 架构拓扑全景图 (Architecture)
 
-二：核心性能基准与实测指标 (Benchmarks)
+                                  [ 用户端 / 管理端 (Windows 宿主机) ]
+                                                   │
+        ┌──────────────────────────────────────────┼──────────────────────────────────────────┐
+        │ (浏览器 HTTPS 统一访问)                  │ (DataGrip JDBC 直连)                     │ (QQ 邮箱接收告警与晨报)
+        ▼                                          ▼                                          ▼
+┌───────────────────────────┐             ┌───────────────────────────┐             ┌───────────────────────────┐
+│ https://*.xinchuang.internal│             │ jdbc:dm://172.29.199.115  │             │ ✅【运维日报】达梦全量灾备成功 │
+│ (标准 443 端口 / 绿色安全锁) │             │ (端口 5236 / 管理员鉴权)  │             │ 🚨【Prometheus 监控紧急告警】│
+└─────────────┬─────────────┘             └─────────────┬─────────────┘             │ ✅【每日巡检晨报-系统健康】   │
+              │                                         │                           └─────────────▲─────────────┘
+              ▼ [ L3 虚拟网桥直连 (vEthernet / 绕过宿主机代理) ]│                                         │
+┌───────────────────────────────────────────────────────┼─────────────────────────────────────────┼─────────────┐
+│ openEuler 24.03 LTS (信创基础设施环境 / D 盘定制部署)    │                                         │             │
+│                                                       │                                         │             │
+│  [ 统一安全反向代理网关层 ]                           │                                         │             │
+│    └── Nginx (端口 80/443, OpenSSL 10年期 SAN 泛域名证书, SNI 域名精准分流)                             │
+│          ├── grafana.xinchuang.internal        ──► 代理至 mon_grafana:3000                              │
+│          ├── prometheus.xinchuang.internal     ──► 代理至 mon_prometheus:9090                           │
+│          └── alertmanager.xinchuang.internal   ──► 代理至 mon_alertmanager:9093                         │
+│                                                                                                 │             │
+│  [ 信创数据库与业务载荷层 ]                                                                     │             │
+│    └── 达梦数据库 (DM8 原生 systemd 托管服务 / 端口 5236) ◄─────────────────────────────────────┘             │
+│          ├── 实例参数: CASE_SENSITIVE=0 (MySQL兼容), PAGE_SIZE=16, CHARSET=UTF-8                               │
+│          ├── 安全基线: dmdba:dinstall 独立运行账户, limits.conf 内核调优, 等保2.0 三权分立强密码                 │
+│          └── 业务模型: 若依 (RuoYi) 30+ 张全套系统与 Quartz 调度表 + 100,000 条操作审计日志 (PL/SQL 存储过程)    │
+│                                                                                                               │
+│  [ 自动化灾备与巡检工具层 ]                                                                                   │
+│    ├── backup_dm8_pro.sh: Linux 内核文件锁 (flock) + dexp 全备 + Gzip 压缩 + MD5 校验 ──► 调用 send_mail.py ─┤
+│    ├── server_health_check.sh: 采集 CPU/内存/磁盘/服务/端口 + 动态加权健康评分 ─────────► 调用 send_mail.py ─┤
+│    └── Crontab 定时调度: 每日 02:30 自动全备 (7天滚动清理) | 每日 08:00 自动巡检晨报                          │
+│                                                                                                               │
+│  [ 云原生可观测性集群 (Docker Compose) ]                                                                      │
+│    ├── node-exporter (系统探针 :9100) ──► Prometheus (:9090) ──► Grafana (:3000 大盘展示)                    │
+│    └── Alertmanager (:9093) ──(CPU >75% 触发 Firing 邮件 / 恢复触发 Resolved 邮件) ───────────────────────────┘
+│                                                                                                               │
+│  [ GitOps 资产归集与版本管理 ]                                                                                │
+│    └── push.sh: 自动归集分散在 ~/scripts、~/monitoring 的配置，脱敏过滤后一键推送至 GitHub                     │
+└───────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
 
-在单机虚拟化环境下，针对 30 张表 + 100,000 条真实操作审计日志（28.029 MB 原始数据） 的基准性能指标：
 
-评估维度；指标参数 / 实测表现；核心技术点与优势
+📊 二、 核心性能基准与实测指标 (Benchmarks)
 
-导出耗时：4.675 秒 (30 Tables / 100,000 Rows)；达梦原生 dexp 逻辑导出
-
-压缩效率原始：28 MB ➡️ 归档 1.2 MB；Gzip 流水线压缩，压缩比 85%+
-
-冷读扫描：1,090 ms (Cold Disk I/O)；CSCN2 聚集索引全表扫描
-
-索引提速：12 ms (Index Range Seek)；SSEK2 复合索引定位，提速 90 倍 
-
-灾难恢复：100% 完整性验证 (dimp)；单表误删恢复 0 警告、0 数据丢失
-
-
-
-三：灾备特性设计 (Defensive Architecture)
-
-防重入内核锁保护： 引入 Linux 内核文件描述符锁（flock -n 200），从根源杜绝定时调度重叠引发的磁盘 I/O 拥塞与死锁。
-
-数据完整性 MD5 签名： 备份完成后毫秒级生成 .md5 哈希伴随文件，异地恢复前自动化校验，彻底规避存储坏道与静默损坏（Bit Rot）。
-
-安全配置物理分离： 敏感连接凭据与 Webhook/SMTP 秘钥收口于 chmod 600 独立配置文件，源码与密码彻底解耦。
-
-全链路告警闭环： 支持每日备份成功推送【运维日报】、执行失败自动捕获错误码并触发【紧急告警】。
+在单机虚拟化环境下，针对 30 张表 + 100,000 条真实操作审计日志（28.029 MB 原始数据） 的实测性能矩阵：
+评估维度	指标参数 / 实测表现	核心技术点与优势
+逻辑全备吞吐	4.675 秒 (30 表 / 100,000 行)	达梦原生 dexp 逻辑导出
+归档压缩效率	原始 28.0 MB ➡️ 归档 1.2 MB	Gzip 流水线压缩，压缩比 85%+
+全表冷读扫描	1,090 ms (Cold Disk I/O)	CSCN2 聚集索引全表扫描
+索引范围查询	12 ms (Index Range Seek)	SSEK2 复合索引定位，提速 90 倍 🚀
+死锁排查时效	1 秒内完成热解卡	V$TRXWAIT 定位 9 分钟锁等待，SP_CLOSE_SESSION 查杀
+表空间热扩容	128 MB 扩容至 192 MB	ALTER TABLESPACE MAIN ADD DATAFILE 零停机在线扩容
+灾难恢复验证	100% 完整性验证 (dimp)	单表误删演练，0 警告、0 数据丢失
+安全网关证书	10 年超长有效期（至 2036 年）	OpenSSL 自建私有 PKI 签发，SAN 泛域名绑定，标准 443 全绿安全锁
 
 
+🛡️ 三、 工业级自动化运维与防御性设计 (Defensive Architecture)
 
-四：生产排障与性能调优 Runbooks
+防重入内核锁保护： 引入 Linux 内核文件描述符锁（flock -n 200），从根源杜绝定时调度重叠引发的磁盘 I/O 拥塞与死锁；进程崩溃内核自动释放锁，无死锁残留。
 
-详细排障案例与复盘收录于 docs/ 目录：
+数据完整性 MD5 签名： 备份完成后毫秒级生成 .md5 哈希伴随文件，异地灾备机恢复前自动校验，彻底规避存储坏道与静默损坏（Bit Rot）。
 
-慢查询定位与执行计划分析：分析 CSCN2 全表扫、SSEK2 索引扫、Buffer Pool 缓存命中与网络 fetching 耗时分解。
+安全配置物理分离： 敏感连接凭据与 SMTP 秘钥收口于 chmod 600 独立配置文件，源码与密码彻底解耦。
 
-长事务行锁等待与会话查杀：通过 V$TRXWAIT 视图实时定位阻塞源头，使用 SP_CLOSE_SESSION(sess_id) 实现线上热解卡。
+每日全自动健康巡检晨报： server_health_check.sh 采集 CPU、内存、Swap、磁盘、Inode、服务与端口状态，引入加权扣分算法输出健康分，每天 08:00 自动推送深蓝卡片式 HTML 晨报。
 
+全链路告警与状态闭环： 支持每日备份成功推送【运维日报】、执行失败自动捕获错误码；监控大盘在指标超标时触发【🚨紧急告警】、恢复时触发【✅已恢复】通知。
+
+
+🌐 四、 统一安全网关与私有 PKI 体系 (Ingress Gateway)
+
+针对企业内网与私有云无备案域名的场景，构建了标准的虚拟主机路由方案：
+私有 PKI 泛域名证书： 通过 OpenSSL 自动签发包含 *.xinchuang.internal、xinchuang.internal、localhost 及主机 IP 的泛域名 SAN 扩展证书。
+SNI 443 端口多域名复用： 采用模块化 conf.d/ 隔离架构，所有 Web 应用统一汇聚于标准 443 端口，通过域名精准分流，80 端口自动 301 强制跳转 HTTPS。
+零停机平滑热重载： 结合 nginx -t 语法自检与 nginx -s reload，实现路由规则毫秒级无感生效。
+
+
+📖 五、 生产排障与性能调优 Runbooks
+
+详细排障案例与复盘手记收录于 docs/ 目录：
+慢查询定位与执行计划分析：深入剖析 CSCN2 全表扫、SSEK2 索引扫、Buffer Pool 缓存命中与网络 fetching 耗时分解。
+长事务行锁等待与会话查杀：通过 V$TRXWAIT 视图实时定位长达 9 分钟的阻塞源头，使用 SP_CLOSE_SESSION(sess_id) 实现线上热解卡，推导自动提交与手动事务的状态机差异。
 表空间在线动态扩容实操：MAIN 表空间水位实时巡检，通过 ALTER TABLESPACE ADD DATAFILE 动态挂载 MAIN_02.DBF，实现零停机容量热扩充。
+Linux CPU 100% 与内核 OOM-Killer 排查：从 top -Hp 线程 TID 转十六进制穿透到应用代码行，提取 dmesg -T 内核级 OOM 击杀铁证与 oom_score_adj -1000 核心服务保护。
+企业级 Nginx 统一网关与私有 PKI 实战指南：私有 CA 构建、SAN 扩展配置、Windows 根证书导入与 443 端口多域名分发全解析。
 
-Linux CPU 100% 与内核 OOM-Killer 排查：从 top -Hp 线程 TID 转十六进制穿透到应用代码行，提取 dmesg -T 内核级 OOM 击杀与 oom_score_adj 核心服务保护。
+
+📂 六、 仓库目录结构全貌
+
+dameng-ops-lab/
+├── README.md                           # 🏛️ 项目全景架构白皮书
+├── LICENSE                             # 📜 Apache License 2.0 许可证
+├── push.sh                             # 🚀 一键自动化资产归集与发布流水线
+├── .gitignore                          # 🛡️ 敏感密钥与大文件安全过滤配置
+│
+├── config/                             # ⚙️ 配置文件模板与容器编排
+│   ├── backup_dm8.conf.example         # 灾备外部凭证配置模板 (脱敏)
+│   ├── docker-compose-monitoring.yml   # Prometheus + Grafana + Alertmanager + Nginx 编排
+│   ├── alertmanager/
+│   │   └── alertmanager.yml.example    # 告警路由与 SMTP 发信模板
+│   ├── prometheus/
+│   │   ├── prometheus.yml              # 监控指标采集任务配置
+│   │   └── alert.rules.yml             # CPU / 内存告警阈值计算规则
+│   └── nginx/
+│       └── conf.d/                     # Nginx 模块化域名路由配置
+│           ├── 00-http-redirect.conf   # 80 端口 HTTP 自动 301 跳转 HTTPS
+│           ├── 01-grafana.conf         # grafana.xinchuang.internal 反向代理
+│           ├── 02-prometheus.conf      # prometheus.xinchuang.internal 反向代理
+│           └── 03-alertmanager.conf    # alertmanager.xinchuang.internal 反向代理
+│
+├── scripts/                            # 🛠️ 生产级自动化与发信工具套件
+│   ├── backup_dm8_pro.sh               # 达梦数据库全量灾备脚本 (带内核文件锁与 MD5)
+│   ├── server_health_check.sh          # 服务器每日健康巡检晨报脚本 (动态加权评分)
+│   ├── send_mail.py                    # 基于 Python SMTP/SSL 的 HTML 邮件推送模块
+│   ├── generate_ssl.sh                 # OpenSSL 10年期 SAN 泛域名证书一键签发工具
+│   └── verify_backup_integrity.sh      # 备份完整性 MD5 自动校验与解压测试工具
+│
+├── sql/                                # 💾 业务模型、压测与 DBA 诊断脚本
+│   ├── ruoyi_dm8_full_schema.sql       # 若依全套 30+ 业务与 Quartz 分布式调度表 DDL
+│   ├── sp_generate_mock_logs.sql       # 10 万行操作审计日志批量生成存储过程
+│   └── dba_troubleshooting_queries.sql # 锁等待排查、会话查杀与表空间巡检 SQL
+│
+└── docs/                               # 📖 深度技术白皮书与排障手册 (Runbooks)
+    ├── 01-xinchuang-deployment-guide.md
+    ├── 02-mysql-to-dameng-migration-diff.md
+    ├── 03-production-incident-runbook.md
+    └── 05-nginx-ssl-pki-gateway.md
 
 
+🚀 七、 快速启动与演练指南
 
-五：快速启动与演练指南
+1. 执行全量灾备并发送邮件
+# 复制并配置环境凭证
+cp config/backup_dm8.conf.example config/backup_dm8.conf
+chmod 600 config/backup_dm8.conf
 
-1）执行全量灾备并发送邮件
+# 运行灾备脚本 (自动触发邮件)
+./scripts/backup_dm8_pro.sh
 
-复制并配置环境凭证cp config/backup_dm8.conf.example config/backup_dm8.confchmod 600 config/backup_dm8.conf
+2. 执行全自动系统健康巡检晨报
+./scripts/server_health_check.sh
 
-运行灾备脚本./scripts/backup_dm8_pro.sh
+3. 启动云原生监控与 Nginx 安全网关
+# 签发 10 年期 SAN 证书
+./scripts/generate_ssl.sh
 
-2）启动监控告警大盘
+# 一键拉起监控大盘与统一网关
+cd config
+docker compose -f docker-compose-monitoring.yml up -d
 
-cd configdocker compose -f docker-compose-monitoring.yml up -d
+# 访问 Grafana:     https://grafana.xinchuang.internal (admin/admin)
+# 访问 Prometheus:  https://prometheus.xinchuang.internal
+# 访问 Alertmanager: https://alertmanager.xinchuang.internal
+本项目所有演练均基于 openEuler 24.03 与达梦 DM8 真实环境校验，符合信创等保 2.0 合规要求。
 
-访问 Grafana: http://<HOST_IP>:3000 (admin/admin)访问 Prometheus: http://<HOST_IP>:9090
-
-本项目所有演练均经过实操校验，符合合规要求。
