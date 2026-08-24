@@ -57,7 +57,7 @@ flowchart TB
     NodeExp --> Prom --> AlertMgr -->|指标超标/恢复| Email
     BackupScript -->|每日 02:30 全备| SendMail --> Email
     HealthScript -->|每日 08:00 晨报| SendMail --> Email
-
+```
 
 
 📊 二、 核心性能基准与实测指标 (Benchmarks)
