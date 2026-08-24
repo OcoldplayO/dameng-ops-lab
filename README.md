@@ -39,7 +39,6 @@
 ---
 
 > [!NOTE]
-
 > 本项目所有方案均在 openEuler 24.03 LTS (x86_64) 与 达梦数据库 (DM8 V8.1.5) 真实单机环境中经过全流程演练与校验，符合信创等保 2.0 合规要求。
 
 ---
@@ -130,6 +129,7 @@ flowchart TB
 
 在单机虚拟化环境下，针对 30 张表 + 100,000 条真实操作审计日志（28.029 MB 原始数据） 的实测性能矩阵：
 
+
 | 评估维度 | 指标参数 / 实测表现 | 核心技术点与优势 |
 
 | :--- | :--- | :--- |
@@ -169,7 +169,6 @@ flowchart TB
 ## 🌐 四、 统一安全网关与私有 PKI 体系
 
 > [!TIP]
-
 > 针对企业内网与私有云无备案域名的场景，本项目构建了基于标准 443 端口的虚拟主机路由与私有 PKI 解决方案。
 
 1. 私有 PKI 泛域名证书： 通过 OpenSSL 自动签发包含 `*.xinchuang.internal`、`xinchuang.internal`、`localhost` 及主机 IP 的泛域名 SAN 扩展证书。
@@ -321,11 +320,7 @@ docker compose -f docker-compose-monitoring.yml up -d
 ```
 
 > [!IMPORTANT]
-
 > 部署完成后可通过以下地址访问各系统：
-
 > * Grafana 大盘： `https://grafana.xinchuang.internal` (默认账号: `admin / admin`)
-
 > * Prometheus 核心： `https://prometheus.xinchuang.internal`
-
 > * Alertmanager 告警： `https://alertmanager.xinchuang.internal`
