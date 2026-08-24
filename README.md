@@ -1,4 +1,4 @@
-🏛️ 企业级信创环境（openEuler + 达梦DM8）全栈交付与自动化容灾演练方案
+# 🏛️ 信创环境（openEuler + 达梦DM8）全栈交付与自动化容灾演练方案
 
 [![Platform](https://img.shields.io/badge/Platform-openEuler%2024.03%20LTS-blue?style=flat-square)](https://openeuler.org/)
 [![Database](https://img.shields.io/badge/Database-Dameng%20DM8%20(8.1.5)-red?style=flat-square)](https://www.dameng.com/)
@@ -7,54 +7,60 @@
 [![License](https://img.shields.io/badge/License-Apache%202.0-green?style=flat-square)](./LICENSE)
 
 本项目模拟“信创国产化替代”交付与运维保障场景。  
+基于 openEuler 24.03 LTS 与 达梦数据库 (DM8)，完成了涵盖复杂业务模型（若依 RuoYi 30+ 表）迁移适配、10万级数据基准压测、工业级自动化容灾、全自动健康巡检晨报、生产事故应急排障手册、统一安全网关（Nginx + 私有 PKI）以及云原生监控告警的全栈工程落地。
 
-基于 openEuler 24.03 LTS 与 达梦数据库 (DM8)，完成了涵盖复杂业务模型（若依 RuoYi 30+ 表）迁移适配、10万级数据基准压、自动化容灾、全自动健康巡检晨报、生产事故应急排障手册、统一安全网关（Nginx + 私有 PKI）以及云原生监控告警的全栈工程落地。
+---
 
+## 📐 一、 架构拓扑全景图 (Architecture)
 
-📐 一、 架构拓扑全景图 (Architecture)
+```mermaid
+flowchart TB
+    subgraph Client["💻 客户端 / 管理端 (Windows 宿主机)"]
+        Browser["🌐 浏览器 (HTTPS 访问)"]
+        DataGrip["🗄️ DataGrip (JDBC 直连 :5236)"]
+        Email["✉️ QQ 邮箱 (接收告警与晨报)"]
+    end
 
-                                  [ 用户端 / 管理端 (Windows 宿主机) ]
-                                                   │
-        ┌──────────────────────────────────────────┼──────────────────────────────────────────┐
-        │ (浏览器 HTTPS 统一访问)                  │ (DataGrip JDBC 直连)                     │ (QQ 邮箱接收告警与晨报)
-        ▼                                          ▼                                          ▼
-┌───────────────────────────┐             ┌───────────────────────────┐             ┌───────────────────────────┐
-│ https://*.xinchuang.internal│             │ jdbc:dm://172.29.199.115  │             │ ✅【运维日报】达梦全量灾备成功 │
-│ (标准 443 端口 / 绿色安全锁) │             │ (端口 5236 / 管理员鉴权)  │             │ 🚨【Prometheus 监控紧急告警】│
-└─────────────┬─────────────┘             └─────────────┬─────────────┘             │ ✅【每日巡检晨报-系统健康】   │
-              │                                         │                           └─────────────▲─────────────┘
-              ▼ [ L3 虚拟网桥直连 (vEthernet / 绕过宿主机代理) ]│                                         │
-┌───────────────────────────────────────────────────────┼─────────────────────────────────────────┼─────────────┐
-│ openEuler 24.03 LTS (信创基础设施环境 / D 盘定制部署)    │                                         │             │
-│                                                       │                                         │             │
-│  [ 统一安全反向代理网关层 ]                           │                                         │             │
-│    └── Nginx (端口 80/443, OpenSSL 10年期 SAN 泛域名证书, SNI 域名精准分流)                             │
-│          ├── grafana.xinchuang.internal        ──► 代理至 mon_grafana:3000                              │
-│          ├── prometheus.xinchuang.internal     ──► 代理至 mon_prometheus:9090                           │
-│          └── alertmanager.xinchuang.internal   ──► 代理至 mon_alertmanager:9093                         │
-│                                                                                                 │             │
-│  [ 信创数据库与业务载荷层 ]                                                                     │             │
-│    └── 达梦数据库 (DM8 原生 systemd 托管服务 / 端口 5236) ◄─────────────────────────────────────┘             │
-│          ├── 实例参数: CASE_SENSITIVE=0 (MySQL兼容), PAGE_SIZE=16, CHARSET=UTF-8                               │
-│          ├── 安全基线: dmdba:dinstall 独立运行账户, limits.conf 内核调优, 等保2.0 三权分立强密码                 │
-│          └── 业务模型: 若依 (RuoYi) 30+ 张全套系统与 Quartz 调度表 + 100,000 条操作审计日志 (PL/SQL 存储过程)    │
-│                                                                                                               │
-│  [ 自动化灾备与巡检工具层 ]                                                                                   │
-│    ├── backup_dm8_pro.sh: Linux 内核文件锁 (flock) + dexp 全备 + Gzip 压缩 + MD5 校验 ──► 调用 send_mail.py ─┤
-│    ├── server_health_check.sh: 采集 CPU/内存/磁盘/服务/端口 + 动态加权健康评分 ─────────► 调用 send_mail.py ─┤
-│    └── Crontab 定时调度: 每日 02:30 自动全备 (7天滚动清理) | 每日 08:00 自动巡检晨报                          │
-│                                                                                                               │
-│  [ 云原生可观测性集群 (Docker Compose) ]                                                                      │
-│    ├── node-exporter (系统探针 :9100) ──► Prometheus (:9090) ──► Grafana (:3000 大盘展示)                    │
-│    └── Alertmanager (:9093) ──(CPU >75% 触发 Firing 邮件 / 恢复触发 Resolved 邮件) ───────────────────────────┘
-│                                                                                                               │
-│  [ GitOps 资产归集与版本管理 ]                                                                                │
-│    └── push.sh: 自动归集分散在 ~/scripts、~/monitoring 的配置，脱敏过滤后一键推送至 GitHub                     │
-└───────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+    subgraph Ingress["🛡️ 统一安全反向代理网关 (Nginx :443 / :80)"]
+        Nginx["Nginx Ingress (SNI 域名精准分流 + 10年期 SAN 泛域名证书)"]
+        R_Grafana["grafana.xinchuang.internal"]
+        R_Prom["prometheus.xinchuang.internal"]
+        R_Alert["alertmanager.xinchuang.internal"]
+    end
+
+    subgraph openEuler["🐧 openEuler 24.03 LTS (信创基础设施环境 / WSL2 D盘定制)"]
+        subgraph DB["💾 达梦数据库 (DM8 原生 systemd 托管服务)"]
+            DM8["DM8 (CASE_SENSITIVE=0 / 等保2.0三权分立)"]
+            RuoYi["若依 30+ 张系统与Quartz表 + 10万条操作日志"]
+        end
+
+        subgraph Monitor["📈 云原生可观测性集群 (Docker Compose)"]
+            NodeExp["node-exporter (系统探针 :9100)"]
+            Prom["Prometheus 时序数据库 (:9090)"]
+            AlertMgr["Alertmanager 告警分发 (:9093)"]
+            Grafana["Grafana 可视化大盘 (:3000)"]
+        end
+
+        subgraph Automation["⚙️ 自动化运维与灾备套件"]
+            BackupScript["backup_dm8_pro.sh (Flock内核锁 + Gzip + MD5)"]
+            HealthScript["server_health_check.sh (动态加权健康评分晨报)"]
+            SendMail["send_mail.py (SMTP/SSL 模块)"]
+        end
+    end
+
+    Browser -->|443/80| Nginx
+    Nginx --> R_Grafana --> Grafana
+    Nginx --> R_Prom --> Prom
+    Nginx --> R_Alert --> AlertMgr
+
+    DataGrip -->|TCP :5236| DM8
+    NodeExp --> Prom --> AlertMgr -->|指标超标/恢复| Email
+    BackupScript -->|每日 02:30 全备| SendMail --> Email
+    HealthScript -->|每日 08:00 晨报| SendMail --> Email
+
 
 
 📊 二、 核心性能基准与实测指标 (Benchmarks)
-
 在单机虚拟化环境下，针对 30 张表 + 100,000 条真实操作审计日志（28.029 MB 原始数据） 的实测性能矩阵：
 评估维度	指标参数 / 实测表现	核心技术点与优势
 逻辑全备吞吐	4.675 秒 (30 表 / 100,000 行)	达梦原生 dexp 逻辑导出
@@ -65,6 +71,7 @@
 表空间热扩容	128 MB 扩容至 192 MB	ALTER TABLESPACE MAIN ADD DATAFILE 零停机在线扩容
 灾难恢复验证	100% 完整性验证 (dimp)	单表误删演练，0 警告、0 数据丢失
 安全网关证书	10 年超长有效期（至 2036 年）	OpenSSL 自建私有 PKI 签发，SAN 泛域名绑定，标准 443 全绿安全锁
+
 
 
 🛡️ 三、 工业级自动化运维与防御性设计 (Defensive Architecture)
@@ -80,6 +87,7 @@
 全链路告警与状态闭环： 支持每日备份成功推送【运维日报】、执行失败自动捕获错误码；监控大盘在指标超标时触发【🚨紧急告警】、恢复时触发【✅已恢复】通知。
 
 
+
 🌐 四、 统一安全网关与私有 PKI 体系 (Ingress Gateway)
 
 针对企业内网与私有云无备案域名的场景，构建了标准的虚拟主机路由方案：
@@ -88,14 +96,15 @@ SNI 443 端口多域名复用： 采用模块化 conf.d/ 隔离架构，所有 W
 零停机平滑热重载： 结合 nginx -t 语法自检与 nginx -s reload，实现路由规则毫秒级无感生效。
 
 
-📖 五、 生产排障与性能调优 Runbooks
 
+📖 五、 生产排障与性能调优 Runbooks
 详细排障案例与复盘手记收录于 docs/ 目录：
 慢查询定位与执行计划分析：深入剖析 CSCN2 全表扫、SSEK2 索引扫、Buffer Pool 缓存命中与网络 fetching 耗时分解。
 长事务行锁等待与会话查杀：通过 V$TRXWAIT 视图实时定位长达 9 分钟的阻塞源头，使用 SP_CLOSE_SESSION(sess_id) 实现线上热解卡，推导自动提交与手动事务的状态机差异。
 表空间在线动态扩容实操：MAIN 表空间水位实时巡检，通过 ALTER TABLESPACE ADD DATAFILE 动态挂载 MAIN_02.DBF，实现零停机容量热扩充。
 Linux CPU 100% 与内核 OOM-Killer 排查：从 top -Hp 线程 TID 转十六进制穿透到应用代码行，提取 dmesg -T 内核级 OOM 击杀铁证与 oom_score_adj -1000 核心服务保护。
 企业级 Nginx 统一网关与私有 PKI 实战指南：私有 CA 构建、SAN 扩展配置、Windows 根证书导入与 443 端口多域名分发全解析。
+
 
 
 📂 六、 仓库目录结构全貌
@@ -134,20 +143,18 @@ dameng-ops-lab/
 │   └── dba_troubleshooting_queries.sql # 锁等待排查、会话查杀与表空间巡检 SQL
 │
 └── docs/                               # 📖 深度技术白皮书与排障手册 (Runbooks)
-    ├── 01-xinchuang-deployment-guide.md
-    ├── 02-mysql-to-dameng-migration-diff.md
-    ├── 03-production-incident-runbook.md
     └── 05-nginx-ssl-pki-gateway.md
+
 
 
 🚀 七、 快速启动与演练指南
 
 1. 执行全量灾备并发送邮件
-# 复制并配置环境凭证
+复制并配置环境凭证
 cp config/backup_dm8.conf.example config/backup_dm8.conf
 chmod 600 config/backup_dm8.conf
 
-# 运行灾备脚本 (自动触发邮件)
+运行灾备脚本 (自动触发邮件)
 ./scripts/backup_dm8_pro.sh
 
 2. 执行全自动系统健康巡检晨报
@@ -164,5 +171,6 @@ docker compose -f docker-compose-monitoring.yml up -d
 # 访问 Grafana:     https://grafana.xinchuang.internal (admin/admin)
 # 访问 Prometheus:  https://prometheus.xinchuang.internal
 # 访问 Alertmanager: https://alertmanager.xinchuang.internal
+
 本项目所有演练均基于 openEuler 24.03 与达梦 DM8 真实环境校验，符合信创等保 2.0 合规要求。
 
