@@ -197,6 +197,7 @@ flowchart TB
 
 ![每日系统健康巡检晨报 HTML 报告](docs/screenshots/02-openeuler-health-report.png)
 
+---
 
 ## 📂 六、 仓库目录结构全貌
 
