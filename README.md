@@ -183,6 +183,21 @@ flowchart TB
 
 ---
 
+## 📸 项目实战交付与可观测性运行图证
+
+以下为信创数据库与全栈可观测平台在 openEuler 环境中的真实运行成果：
+
+### 1. 达梦数据库全量自动化容灾备份回执
+每日凌晨由 crontab 调度执行，基于 Linux 内核文件锁（`flock -n 200`）与 MD5 校验完成全量冷备并发送回执：
+
+![达梦数据库全量灾备告警邮件](docs/screenshots/01-dameng-backup-report.png)
+
+### 2. 每日系统健康巡检晨报 HTML 大盘（100分满分）
+多维动态加权巡检模块，对 CPU/内存/磁盘水位、达梦数据库服务存活与 443 安全网关进行全量体检并输出可视化晨报：
+
+![每日系统健康巡检晨报 HTML 报告](docs/screenshots/02-openeuler-health-report.png)
+
+
 ## 📂 六、 仓库目录结构全貌
 
 ```text
